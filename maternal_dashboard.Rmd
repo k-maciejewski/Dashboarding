@@ -1,0 +1,788 @@
+---
+title: "Maternal Dashboard"
+output: 
+ flexdashboard::flex_dashboard:
+   orientation: rows
+   vertical_layout: fill
+   source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(tidyverse)
+library(shiny)
+library(ggplot2)
+library(plotly)
+library(knitr)
+library(lubridate)
+library(scales)
+library(readxl)
+
+theme_set(theme_bw())
+```
+
+```{r mockdata, eval = T}
+# change to eval = F here and T below to use excel file
+
+set.seed(42)
+SiteName = c("A","B","C","D","E")
+date = rep(c("1/1/2018","2/1/2018","3/1/2018","4/1/2018","5/1/2018",
+             "6/1/2018","7/1/2018","8/1/2018","9/1/2018","10/1/2018","11/1/2018","12/1/2018"),
+           each = 5) %>% as.tibble
+dates<-as.POSIXct(date$value,format = "%m/%d/%Y") %>% as.tibble # change character to date format
+
+maternal = as.data.frame(cbind(SiteName, dates)) # make maternal
+maternal$SiteName <- as.character(maternal$SiteName) # change data type
+maternal<-rename(maternal, Period = value)
+
+maternal$PreM1Data_DEN = rep(floor(runif(12,100,500)), 5)
+maternal$PreM1Data_NUM = floor(maternal$PreM1Data_DEN*(runif(60,.45,.65)))
+maternal$PreM2Data_DEN = maternal$PreM1Data_NUM
+maternal$PreM2Data_NUM = ceiling(maternal$PreM2Data_DEN *(runif(60,.05,.15)))
+maternal$PreM3Data_NUM = ceiling(maternal$PreM2Data_NUM *(runif(60,.9,1)))
+maternal$PreM3Data_DEN = maternal$PreM2Data_NUM
+
+maternal$PostM1Data_DEN = rep(floor(runif(12,50,400)), 5)
+maternal$PostM1Data_NUM = floor(maternal$PostM1Data_DEN*(runif(60,.45,.65)))
+maternal$PostM2Data_NUM = ceiling(maternal$PostM1Data_NUM*(runif(60,.05,.15)))
+maternal$PostM2Data_DEN = maternal$PostM1Data_NUM
+maternal$PostM3Data_NUM = ceiling(maternal$PostM2Data_NUM*(runif(60,.9,1)))
+maternal$PostM3Data_DEN = maternal$PostM2Data_NUM
+
+###
+
+agg_maternal <- maternal %>% select(-c(SiteName)) %>%  #select(-c(SiteName, HospitalName, New)) 
+                                       group_by(Period) %>% summarise_all(sum, na.rm = T) # don't sum with NA's  
+attach(agg_maternal)
+agg_maternal$PrePostNums <- PreM1Data_NUM + PostM1Data_NUM 
+agg_maternal$PrenatalPctScreened <- PreM1Data_NUM/PreM1Data_DEN 
+agg_maternal$PrenatalPctPos <- PreM2Data_NUM/PreM2Data_DEN 
+agg_maternal$PrenatalPctConnected <- PreM3Data_NUM/PreM3Data_DEN 
+agg_maternal$PostPctScreened <- PostM1Data_NUM/PostM1Data_DEN 
+agg_maternal$PostPctPos <- PostM2Data_NUM/PostM2Data_DEN 
+agg_maternal$PostPctConnected <- PostM3Data_NUM/PostM3Data_DEN 
+
+attach(maternal)
+maternal$PrePostNums <- PreM1Data_NUM + PostM1Data_NUM 
+maternal$PrenatalPctScreened <- PreM1Data_NUM/PreM1Data_DEN 
+maternal$PrenatalPctPos <- PreM2Data_NUM/PreM2Data_DEN 
+maternal$PrenatalPctConnected <- PreM3Data_NUM/PreM3Data_DEN 
+maternal$PostPctScreened <- PostM1Data_NUM/PostM1Data_DEN 
+maternal$PostPctPos <- PostM2Data_NUM/PostM2Data_DEN 
+maternal$PostPctConnected <- PostM3Data_NUM/PostM3Data_DEN
+
+```
+
+```{r realdata, eval = F}
+# change to eval = F above and T here to use excel file
+
+maternal <- read_excel("~/file.xls")
+
+"/" <- function(x,y) ifelse(y==0,0,base:::"/"(x,y)) # redefine division by zero so there's no NaN's produced
+
+agg_maternal <- maternal %>% select(-c(SiteName, HospitalName, New)) %>%  
+                                       group_by(Period) %>% summarise_all(sum, na.rm = T)  # ignore NA's
+
+attach(agg_maternal)
+agg_maternal$PrePostNums <- PreM1Data_NUM + PostM1Data_NUM
+agg_maternal$PrenatalPctScreened <- PreM1Data_NUM/PreM1Data_DEN
+agg_maternal$PrenatalPctPos <- PreM2Data_NUM/PreM2Data_DEN
+agg_maternal$PrenatalPctConnected <- PreM3Data_NUM/PreM3Data_DEN
+agg_maternal$PostPctScreened <- PostM1Data_NUM/PostM1Data_DEN
+agg_maternal$PostPctPos <- PostM2Data_NUM/PostM2Data_DEN
+agg_maternal$PostPctConnected <- PostM3Data_NUM/PostM3Data_DEN
+
+attach(maternal)
+maternal$PrePostNums <- PreM1Data_NUM + PostM1Data_NUM
+maternal$PrenatalPctScreened <- PreM1Data_NUM/PreM1Data_DEN
+maternal$PrenatalPctPos <- PreM2Data_NUM/PreM2Data_DEN
+maternal$PrenatalPctConnected <- PreM3Data_NUM/PreM3Data_DEN
+maternal$PostPctScreened <- PostM1Data_NUM/PostM1Data_DEN
+maternal$PostPctPos <- PostM2Data_NUM/PostM2Data_DEN
+maternal$PostPctConnected <- PostM3Data_NUM/PostM3Data_DEN
+```
+
+Screening by SiteName {data-navmenu="Choose a view"}
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r widget1}
+# select each SiteName with drop down menus
+hr()
+
+agg_select <- agg_maternal %>%  select(Period, PrenatalPctPos) %>% mutate(SiteName = "average") # option to show average line
+maternal_avg <- full_join(agg_select, maternal)
+
+which_SiteName <- maternal_avg %>% distinct(SiteName) %>% pull %>% as.character() %>% sort()
+
+selectInput("SiteName_choice1", label = ("Select Site 1"),
+           choices = which_SiteName, selected = NULL)
+selectInput("SiteName_choice2", label = ("Select Site 2"),
+           choices = which_SiteName, selected = NULL)
+selectInput("SiteName_choice3", label = ("Select Site 3"),
+           choices = which_SiteName, selected = NULL)
+selectInput("SiteName_choice4", label = ("Select Site 4"),
+           choices = which_SiteName, selected = NULL)
+
+# slider for date range can go here
+# dateRangeInput("daterange", "Date range: ",
+#                min = "2018-01-01",
+#                max = "2018-12-01",
+#                start = "2018-01-01",
+#                end = "2018-12-01",
+#                #value = c("2018/01/01", "2018/12/01"),
+#                #sep = "-",
+#                format = "%b%Y")
+```
+
+Row 1
+-----------------------------------------------------------------------
+
+### plot 1
+```{r, eval = T}
+renderPlotly({                                                        # render the interactive plot
+ # create a ggplot and make interactive by calling ggplotly
+
+p<- maternal_avg %>% filter(SiteName %in% input$SiteName_choice1) %>% # filters only the SiteName the user chose
+  #filter(Period %in% input$daterange) %>% 
+  ggplot(aes(x=Period, y=PrenatalPctPos, group= 1,                   # group = 1 to plot since each month has 1 data point
+              text = paste('SiteName: ', SiteName, "<br>",            # create tooltip text
+                           'proportion positive: ', round(PrenatalPctPos,3)))) +
+     geom_line(aes(x=Period, y=PrenatalPctPos),color = "red") +       # each panel has its own color
+     geom_point() +                                                   # show the points
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black") + # horizontal reference line
+     annotate(geom="text", label="12% PRAMS", x = as.POSIXct('2018-02-01'), y=.125, vjust=-1) + # annotate the line
+     xlab("Month") + # x and y labels
+     ylab("Proportion")  +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) # x labels at 45 deg angle
+ggplotly(p, tooltip = ("text"))
+ })
+```
+
+```{r, eval = F}
+# syntax for plotly
+renderPlotly({
+
+maternal_avg %>% filter(SiteName %in% input$SiteName_choice1) %>% # filters only the SiteName the user chose
+   plot_ly(x = ~Period, y = ~PrenatalPctPos
+         , color = I('red')                        # set color of line
+         , type = "scatter", mode = "lines+markers"# line plot with dot markers
+         , alpha = 0.5                             # transparency control
+         , hoverinfo = 'text'                      # set hover text
+         , text = ~paste("SiteName: ", SiteName, '\nproportion: ', round(PrenatalPctPos,3))
+           ) %>% 
+   add_lines(x=c(0,12), y=c(.12,.12)               # create gray reference line
+             , color = I('gray')
+             , hoverinfo = 'text'                  # hover text
+             , text = ~paste("12% PRAMS")) %>% 
+             layout(showlegend = F) %>%            # no legend 
+   layout(xaxis=list(title = "month")              # set axis titles
+          , yaxis=list(title = "proportion"))
+ })
+```
+
+### plot 2
+
+```{r}
+renderPlotly({
+p2<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice2) %>%
+ ggplot(aes(x=Period, y=PrenatalPctPos, group= 1, 
+              text = paste('SiteName: ', SiteName, "<br>",
+                           'proportion positive: ', round(PrenatalPctPos,3)))) +
+     geom_line(aes(x=Period, y=PrenatalPctPos),color = "blue") +
+     geom_point() +
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black") + 
+     xlab("Month")+
+     ylab("Proportion")  +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + 
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+ggplotly(p2, tooltip = c("text"))
+ })
+```
+
+Row 2
+-----------------------------------------------------------------------
+### plot 3
+```{r}
+renderPlotly({
+p3<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice3) %>%
+   ggplot(aes(x=Period, y=PrenatalPctPos, group= 1, 
+              text = paste('SiteName: ', SiteName, "<br>",
+                           'proportion positive: ', round(PrenatalPctPos,3)))) +
+     geom_line(aes(x=Period, y=PrenatalPctPos),color = "dark green") +
+     geom_point() +
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black") + 
+     xlab("Month")+
+     ylab("Proportion")  +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + 
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+ggplotly(p3, tooltip = c("text"))
+})
+```
+
+### plot 4
+```{r}
+renderPlotly({
+p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice4) %>%
+   ggplot(aes(x=Period, y=PrenatalPctPos, group= 1,    
+              text = paste('SiteName: ', SiteName, "<br>",
+                           'proportion positive: ', round(PrenatalPctPos,3)))) +
+     geom_line(aes(x=Period, y=PrenatalPctPos),color = "purple") +
+     geom_point() +
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black") + 
+     xlab("Month")+
+     ylab("Proportion")  +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + 
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+ggplotly(p4, tooltip = c("text"))
+})
+```
+
+
+Screening by SiteName option deux {data-navmenu="Choose a view"}
+=====================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r, eval = T}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+# select each SiteName with check boxes
+hr()
+agg_select <- agg_maternal %>%  select(Period, PrenatalPctPos) %>% mutate(SiteName = "average") # option to show average line
+maternal_avg <- full_join(agg_select, maternal)
+
+which_SiteName <- maternal_avg %>% distinct(SiteName) %>% pull %>% as.character() %>% sort() 
+
+checkboxGroupInput("SiteName_choice", label = h3("Select Site"),
+           choices = which_SiteName, selected = "average", inline = T)
+```
+
+Column
+---------
+
+###
+
+```{r, eval = T}
+renderPlotly({
+p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice& 
+                              between(as.Date(Period),
+                                      input$Date_range_selector[1], 
+                                      input$Date_range_selector[2])) %>% # filter SiteName based on user input
+  # each has a different title "Date_range_selectorN" ... be sure to change
+   ggplot(aes(x = Period, y = PrenatalPctPos, group = SiteName,    
+              text = paste('SiteName: ', SiteName, "<br>", # create tooltip
+                           'proportion positive: ', round(PrenatalPctPos,3), "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) +
+     geom_point(aes(x=Period, y=PrenatalPctPos,color = SiteName)) + # make points
+     geom_line(aes(x=Period, y=PrenatalPctPos,color = SiteName)) + # each SiteName has own line
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black") + # reference line
+     annotate(geom="text", label="12% PRAMS", x = as.POSIXct('2018-02-01'), y=.121, vjust=-1) + # annotate reference line
+     xlab("Month")+ # axis labels
+     ylab("Proportion") +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y"))+ # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) # x labels at 45 deg angle
+
+ggplotly(p4, tooltip = c("text"))
+})
+```
+
+
+Screening by SiteName option tres {data-navmenu="Choose a view" data-orientation=columns}
+=====================================
+
+Column 1 {.sidebar}
+--------
+
+```{r}
+hr()
+
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector2", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()                
+
+agg_select <- agg_maternal %>%  select(Period, PrenatalPctPos) %>% mutate(SiteName = "average") # option to show average line
+maternal_avg <- full_join(agg_select, maternal)
+
+which_SiteName <- maternal_avg %>% distinct(SiteName) %>% pull %>% as.character() %>% sort() 
+
+
+selectInput("SiteName_choice5", label = ("Select Site Name"),
+           choices = which_SiteName, selected = "average", multiple = T)
+```
+
+Column 2
+--------
+
+###
+
+```{r}
+renderPlotly({
+p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice5 & 
+                              between(as.Date(Period),
+                                      input$Date_range_selector2[1], 
+                                      input$Date_range_selector2[2])) %>% # filter based on user input
+  # each has a different title "Date_range_selectorN" ... be sure to change
+   ggplot(aes(x=Period, y=PrenatalPctPos, group= SiteName,    
+              text = paste('SiteName: ', SiteName, "<br>", # tooltip
+                           'proportion positive: ', round(PrenatalPctPos,3), "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) +
+     geom_line(aes(x=Period, y=PrenatalPctPos,color = SiteName)) +
+     facet_grid(SiteName~., shrink = F) + # each SiteName in own grid
+     geom_point() + # make points (black since not coloring by SiteName)
+     geom_hline(yintercept=0.12, linetype="dashed", color = "black")+ # reference line
+     annotate(geom="text", label="12% PRAMS", x = as.POSIXct('2018-02-01'), y=.121, vjust=-1) + # reference line text
+     xlab("Month")+ # axis labels
+     ylab("Proportion")  +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) # x labels at 45 deg angle
+ggplotly(p4, tooltip = c("text"))
+})
+```
+
+Number and % Screened {data-navmenu="Choose a view" data-orientation=rows}
+=====================================
+
+## Column {.sidebar}
+
+Can describe page here, or include more control widgets
+
+```{r}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector3", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()
+```
+
+
+## Row {data-height=950}
+
+### Number of women screened for depression (pre and post)
+```{r}
+renderPlotly({
+p<-agg_maternal %>% filter(between(as.Date(Period),
+                                      input$Date_range_selector3[1], 
+                                      input$Date_range_selector3[2])) %>%
+  # each has a different title "Date_range_selectorN" ... be sure to change
+  ggplot(., aes(Period, 
+                            PrePostNums , 
+                            group = 1, # 1 data point per month
+                            text = paste("number screened: ", # tooltip
+                                   PrePostNums, "<br>",
+                                  'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
+  geom_line(stat = "summary") + # plot lines
+  geom_point(alpha = .5) +
+  xlab("Month") + # axis labels
+  ylab("Total prenatal and postpartum screening") +
+  ggtitle("Number of women screened for depression (pre and post)") + # plot title
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))
+
+ggplotly(p, tooltip= c("text"))
+})
+```
+
+### Prenatal and postpartum depression screening
+```{r}
+renderPlotly({
+p<-select(agg_maternal, c("PrenatalPctScreened", "PostPctScreened", "Period")) %>% # select only data of interest
+  rename(., Prenatal = PrenatalPctScreened , Postpartum = PostPctScreened) %>% # rename variables
+  gather(., key = timepoint, value = measure, "Prenatal", "Postpartum") %>% # reshape to plot
+  filter(between(as.Date(Period),
+                                      input$Date_range_selector3[1], 
+                                      input$Date_range_selector3[2])) %>%
+  ggplot(., aes(y = measure, x = Period, 
+              color = timepoint, # plot each timepoint a different color and line
+              group = timepoint, 
+              text = paste(round(measure,3)*100,"% screened", # tooltip text
+                           "<br>",timepoint,
+                           "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) +  
+  xlab("Month") + # axis labels
+  ylab("Proportion Screened") +
+  geom_line(stat = "summary") + # plot line
+  geom_point(alpha = .5) + # set transparency of points
+  ggtitle("Prenatal and postpartum depression screening") + # plot title
+  geom_hline(yintercept=1, linetype="dashed", color = "black") + # reference line
+  annotate(geom="text", label="target 100%", x = as.POSIXct('2018-03-01'), y=.98, vjust=-1) + # label reference line
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) +
+  labs(color = "") # remove legend title 
+
+ggplotly(p, tooltip = "text")
+})
+```
+
+## Screened, tables {.tabset .tabset-fade}
+
+### Women screened at their first prenatal visit
+```{r}
+# reshape data to make table of data of interest
+Z<-select(maternal, c("SiteName","PreM1Data_NUM","PreM1Data_DEN", "Period")) %>%
+  group_by(Period) %>% 
+  filter(!is.na(PreM1Data_NUM)) %>% # don't sum over NA
+  summarise("prenatal screen" = sum(PreM1Data_NUM) , # name of each row
+            "denom" = sum(PreM1Data_DEN), 
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character() # column names 
+colnames(new) <- Z$Period
+new[-1,] %>% knitr::kable(caption = "Women screened at their first prenatal visit") # pretty table with title
+```
+
+### Women screened at their postpartum visit
+```{r}
+Z<-select(maternal, c("SiteName","PostM1Data_NUM","PostM1Data_DEN", "Period")) %>% 
+  group_by(Period) %>% 
+  filter(!is.na(PostM1Data_NUM)) %>% # don't sum over NA
+  summarise("postpartum screen" = sum(PostM1Data_NUM), # name of each row
+            "denom" = sum(PostM1Data_DEN),
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character() # column names
+colnames(new) <-Z$Period
+new[-1,] %>% knitr::kable(caption = "Women screened at their postpartum visit") # pretty table with title
+```
+
+
+Prenatal screening rates {data-navmenu="Choose a view"}
+=====================================
+
+## Column {.sidebar}
+
+Can describe page here, or include more control widgets
+
+```{r}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector4", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()
+```
+
+
+## Graph
+### Prenatal depression screening
+```{r}
+renderPlotly({
+p<-agg_maternal %>% filter(between(as.Date(Period),
+                                      input$Date_range_selector4[1], 
+                                      input$Date_range_selector4[2])) %>% 
+  # each has a different title "Date_range_selectorN" ... be sure to change
+  ggplot(., aes(Period, PrenatalPctScreened, group = 1, label = PrenatalPctScreened )) + 
+  geom_line(stat = "summary") + # plot line
+  geom_point() + # points black since not coloring by data
+  geom_text(aes(label=round(PrenatalPctScreened ,3)), nudge_y = .01) + # set label for points
+  xlab("Month") + # axis titles
+  ylab("Proportion Screened") +
+  ggtitle("Prenatal depression screening") + # plot title
+  geom_hline(yintercept=1, linetype="dashed", color = "black") + # reference line and text
+  annotate(geom="text", label="target 100%", x = as.POSIXct('2018-02-01'), y=.99, vjust=-1) +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5))  
+
+ggplotly(p, tooltip = "text")
+})
+```
+
+
+Women who screen positive {data-navmenu="Choose a view"}
+=====================================
+
+## Column {.sidebar}
+
+Can describe page here, or include more control widgets
+
+```{r}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector5", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()
+```
+
+
+## Row {.tabset .tabset-fade}
+
+### Women who screened positive for depression
+```{r}
+renderPlotly({
+p<-select(agg_maternal, c("PrenatalPctPos", "PostPctPos", "Period")) %>% 
+  rename(., Prenatal = PrenatalPctPos, Postpartum = PostPctPos) %>% # rename variables
+  gather(., key = timepoint, value = measure, "Prenatal", "Postpartum") %>% # reshape to plot
+  filter(between(as.Date(Period),
+                                      input$Date_range_selector5[1], 
+                                      input$Date_range_selector5[2])) %>% 
+  # each has a different title "Date_range_selectorN" ... be sure to change
+  ggplot(., aes(y = measure, x = Period, 
+              color = timepoint, # plot each timepoint a different color and line
+              group = timepoint, 
+              text = paste(round(measure,3)*100,"% screened", # tooltip text
+                           "<br>",timepoint,
+                           "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) +  
+  geom_line(stat = "summary") + # plot lines
+  geom_point(alpha = .5) + # points with transparency
+  xlab("Month") + # axis labels
+  ylab("Proportion Screened") +
+  ggtitle("Women who screened positive for depression") + # plot title
+  geom_hline(yintercept=.12, linetype="dashed", color = "black") + # reference line and label
+  annotate(geom="text", label="12% positive screen rate for PRAMS", x = as.POSIXct('2018-03-01'), y=.121, vjust=-1) + 
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) + # x labels at 45 deg angle
+  labs(color = "") # remove legend title
+
+ggplotly(p, tooltip = "text")
+})
+```
+
+### Screened positive, tables
+
+```{r}
+Z<-select(maternal, c("SiteName","PreM2Data_NUM","PreM2Data_DEN", "Period")) %>% # reshape data
+  group_by(Period) %>% 
+  filter(!is.na(PreM2Data_NUM)) %>% # don't sum over NA
+  summarise("prenatal pos" = sum(PreM2Data_NUM), # row labels
+            "denom" = sum(PreM2Data_DEN), 
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character() # column labels
+colnames(new) <-Z$Period
+new[-1,] %>% knitr::kable(caption = "Women who screened positive at their first prenatal visit") # pretty table with title
+
+Z<-select(maternal, c("SiteName","PostM2Data_NUM","PostM2Data_DEN", "Period")) %>% # reshape data
+  group_by(Period) %>% 
+  filter(!is.na(PostM2Data_NUM)) %>% # don't sum over NA
+  summarise("postpartum pos" = sum(PostM2Data_NUM), # row labels
+            "denom" = sum(PostM2Data_DEN), 
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character()  # column labels
+colnames(new) <-Z$Period
+new[-1,] %>% knitr::kable(caption = "Women who screened positive at their postpartum visit") # pretty table with title
+```
+
+Connected to follow-up {data-navmenu="Choose a view" data-orientation=rows}
+=====================================
+
+## Column {.sidebar}
+
+Can describe page here, or include more control widgets
+
+```{r}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector6", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()
+```
+
+
+## graph {data-height=950}
+### Women who screened positive connected to followup
+```{r}
+renderPlotly({
+p<-select(agg_maternal, c("PrenatalPctConnected", "PostPctConnected", "Period")) %>%
+  rename(., Prenatal = PrenatalPctConnected, Postpartum = PostPctConnected) %>% # rename variables
+  gather(., key = timepoint, value = measure, "Prenatal", "Postpartum") %>%  # reshape to plot
+  filter(between(as.Date(Period),
+                                      input$Date_range_selector6[1], 
+                                      input$Date_range_selector6[2])) %>% 
+  # each has a different title "Date_range_selectorN" ... be sure to change
+  ggplot(., aes(y = measure, x = Period, 
+              color = timepoint, # plot each timepoint a different color and line
+              group = timepoint, 
+              text = paste(round(measure,3)*100,"% screened", # tooltip text
+                           "<br>",timepoint,
+                           "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
+  geom_line(stat = "summary") + # plot line
+  geom_point(alpha = .5) + # points with transparency
+  xlab("Month") + # axis labels
+  ylab("Proportion Screened") +
+  ggtitle("Women who screened positive connected to treatment/follow-up") + # plot title
+  geom_hline(yintercept=1, linetype="dashed", color = "black") + # reference line and label
+  annotate(geom="text", label="target 100%", x = as.POSIXct('2018-02-01'), y=.998, vjust=-1) +
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) + # x labels at 45 deg angle
+  labs(color = "") # remove legend title
+
+ggplotly(p, tooltip = "text")
+})
+```
+
+## tables {.tabset .tabset-fade}
+### Women who connected to follow-up/treatment after their first prenatal visit
+```{r}
+Z<-select(maternal, c("SiteName","PreM3Data_NUM","PreM3Data_DEN", "Period")) %>% # reshape data
+  group_by(Period) %>% 
+  filter(!is.na(PreM3Data_NUM)) %>% # don't sum over NA
+  summarise("# referred" = sum(PreM3Data_NUM), # row labels
+            denom = sum(PreM3Data_DEN), 
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character() # column labels
+colnames(new) <-Z$Period
+new[-1,] %>% knitr::kable(caption = "Women who connected to follow-up/treatment after their first prenatal visit") # pretty table with title
+```
+
+### Women who connected to follow-up/treatment after their postpartum visit
+```{r}
+Z<-select(maternal, c("SiteName","PostM3Data_NUM","PostM3Data_DEN", "Period")) %>% # reshape data
+  group_by(Period) %>% 
+  filter(!is.na(PostM3Data_NUM)) %>% # don't sum over NA
+  summarise("# referred" = sum(PostM3Data_NUM), # row labels
+            denom = sum(PostM3Data_DEN), 
+            `n SiteName` = n()) 
+new<-t(Z) # transpose df
+Z$Period <- paste(month(Z$Period, label = TRUE),year(Z$Period)) %>% as.character() # column labels
+colnames(new) <-Z$Period
+new[-1,] %>% knitr::kable(caption = "Women who connected to follow-up/treatment after their postpartum visit") # pretty table with title
+```
+
+
+# Women positive and eligible {data-navmenu="Choose a view"}
+=====================================
+
+## Column {.sidebar}
+
+Can describe page here, or include more control widgets
+
+```{r}
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector7", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+# each has a different title "Date_range_selectorN" ... be sure to change
+
+hr()
+```
+
+
+## Graph
+### Total women screened for maternal depression (out of number of eligible women)
+```{r}
+renderPlotly({
+p<-select(agg_maternal, c("PreM1Data_DEN", "PreM2Data_NUM", "Period")) %>% 
+  rename(., Eligible = PreM1Data_DEN, Positive = PreM2Data_NUM) %>% # rename variables
+  gather(., key = status, value = measure, "Eligible", "Positive") %>% # reshape to plot
+  filter(between(as.Date(Period),
+                                      input$Date_range_selector7[1], 
+                                      input$Date_range_selector7[2])) %>% 
+  # each has a different title "Date_range_selectorN" ... be sure to change
+  ggplot(., aes(y = measure, x = Period, 
+              fill = status, # color by eligible or positive
+              text = paste(round(measure,3),status, # tooltip text
+                           "<br>",
+                           'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
+  geom_bar(stat = "summary", position = position_stack(reverse = TRUE)) + # make stacked bars
+  xlab("Month")+ # axis labels
+  ylab("Number Screened")+
+  ggtitle("Total women screened for maternal depression (out of number of eligible women)") + # plot title
+  scale_x_datetime(date_breaks = "1 month", labels = date_format("%b %Y")) + # format x axis
+  theme(axis.text.x  = element_text(angle=45, vjust=0.5)) + # x labels at 45 deg angle
+  labs(fill = "") # remove legend title
+
+ggplotly(p, tooltip = "text")
+})
+```
+
+Tutorial info {data-orientation=columns}
+=====================================
+I can change the orientation on new pages using `{data-orientation=columns}` etc
+
+## make a column
+
+### References 
+```{r}
+# more pages for more things!
+```
+#### flexdashboard
+
+- flex dashboards can be static or made interactive by using `runtime: shiny`
+
+[flex dashboard guide](https://rmarkdown.rstudio.com/flexdashboard/index.html)
+
+[layout guide](https://rmarkdown.rstudio.com/flexdashboard/layouts.html#overview)
+
+[dashboard chapter in markdown book](https://bookdown.org/yihui/rmarkdown/dashboards.html)
+
+#### ggplot
+
+[reference](https://ggplot2.tidyverse.org/reference/)
+
+[tutorial from r-statistics](http://r-statistics.co/R-Tutorial.html)
+
+#### plot.ly
+
+- `plot.ly` creates interactive plots
+
+- as seen on previous page, you can also wrap `ggplot` objects in `ggplotly` to make them interactive
+
+[plot.ly guide](https://plot.ly/r)
+
+[cheatsheet](https://images.plot.ly/plotly-documentation/images/r_cheat_sheet.pdf?_ga=2.221695057.832877277.1554941189-624079522.1510715632)
+
+[ggplotly](https://plot.ly/ggplot2/user-guide/)
+
+#### shiny app
+
+- you can also make a shiny app, which uses more html - like syntax
+
+[shiny guide: getting started](https://rstudio.github.io/shinydashboard/get_started.html)
+
+[shiny guide: structure](https://rstudio.github.io/shinydashboard/structure.html#background-shiny-and-html)
+
+[shiny tutorial from RStudio](http://shiny.rstudio.com/tutorial)
+
+[another resource](https://docs.rstudio.com/shinyapps.io/)
+
+## column 2
+
+### another column
+
+lets put some text in it
+
+note you can use markdown syntax for headings as shown below:
+
+- to make new column or row:
+
+`## name` or 
+
+`name`
+
+`------------------------`
+
+- `### title` makes the caption
+
+- `####` will make headers
