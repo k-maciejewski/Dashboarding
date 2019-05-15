@@ -111,6 +111,19 @@ Column {.sidebar}
 -----------------------------------------------------------------------
 
 ```{r widget1}
+
+h3("Screening by site")
+
+h5("There are three different options to view this comparison")
+
+hr()
+min_date <-as.Date(min(Period)) # create min and max for slider
+max_date <- as.Date(max(Period))
+
+sliderInput("Date_range_selector0", "Date Range: ", min = min_date, max =max_date, value=as.Date(c("2018-01-01","2018-12-01")),timeFormat="%b %Y") # date slider
+
+# each has a different title "Date_range_selectorN" ... be sure to change
+
 # select each SiteName with drop down menus
 hr()
 
@@ -128,15 +141,6 @@ selectInput("SiteName_choice3", label = ("Select Site 3"),
 selectInput("SiteName_choice4", label = ("Select Site 4"),
            choices = which_SiteName, selected = NULL)
 
-# slider for date range can go here
-# dateRangeInput("daterange", "Date range: ",
-#                min = "2018-01-01",
-#                max = "2018-12-01",
-#                start = "2018-01-01",
-#                end = "2018-12-01",
-#                #value = c("2018/01/01", "2018/12/01"),
-#                #sep = "-",
-#                format = "%b%Y")
 ```
 
 Row 1
@@ -147,10 +151,13 @@ Row 1
 renderPlotly({                                                        # render the interactive plot
  # create a ggplot and make interactive by calling ggplotly
 
-p<- maternal_avg %>% filter(SiteName %in% input$SiteName_choice1) %>% # filters only the SiteName the user chose
+p<- maternal_avg %>% filter(SiteName %in% input$SiteName_choice1& 
+                              between(as.Date(Period),
+                                      input$Date_range_selector0[1], 
+                                      input$Date_range_selector0[2])) %>% # filters only the SiteName the user chose
   #filter(Period %in% input$daterange) %>% 
   ggplot(aes(x=Period, y=PrenatalPctPos, group= 1,                   # group = 1 to plot since each month has 1 data point
-              text = paste('SiteName: ', SiteName, "<br>",            # create tooltip text
+              text = paste('SiteName: ', SiteName, "",            # create tooltip text
                            'proportion positive: ', round(PrenatalPctPos,3)))) +
      geom_line(aes(x=Period, y=PrenatalPctPos),color = "red") +       # each panel has its own color
      geom_point() +                                                   # show the points
@@ -168,7 +175,10 @@ ggplotly(p, tooltip = ("text"))
 # syntax for plotly
 renderPlotly({
 
-maternal_avg %>% filter(SiteName %in% input$SiteName_choice1) %>% # filters only the SiteName the user chose
+maternal_avg %>% filter(SiteName %in% input$SiteName_choice1& 
+                              between(as.Date(Period),
+                                      input$Date_range_selector0[1], 
+                                      input$Date_range_selector0[2])) %>% # filters only the SiteName the user chose
    plot_ly(x = ~Period, y = ~PrenatalPctPos
          , color = I('red')                        # set color of line
          , type = "scatter", mode = "lines+markers"# line plot with dot markers
@@ -190,9 +200,12 @@ maternal_avg %>% filter(SiteName %in% input$SiteName_choice1) %>% # filters only
 
 ```{r}
 renderPlotly({
-p2<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice2) %>%
+p2<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice2& 
+                              between(as.Date(Period),
+                                      input$Date_range_selector0[1], 
+                                      input$Date_range_selector0[2])) %>%
  ggplot(aes(x=Period, y=PrenatalPctPos, group= 1, 
-              text = paste('SiteName: ', SiteName, "<br>",
+              text = paste('SiteName: ', SiteName, "",
                            'proportion positive: ', round(PrenatalPctPos,3)))) +
      geom_line(aes(x=Period, y=PrenatalPctPos),color = "blue") +
      geom_point() +
@@ -210,9 +223,12 @@ Row 2
 ### plot 3
 ```{r}
 renderPlotly({
-p3<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice3) %>%
+p3<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice3 & 
+                              between(as.Date(Period),
+                                      input$Date_range_selector0[1], 
+                                      input$Date_range_selector0[2])) %>%
    ggplot(aes(x=Period, y=PrenatalPctPos, group= 1, 
-              text = paste('SiteName: ', SiteName, "<br>",
+              text = paste('SiteName: ', SiteName, "",
                            'proportion positive: ', round(PrenatalPctPos,3)))) +
      geom_line(aes(x=Period, y=PrenatalPctPos),color = "dark green") +
      geom_point() +
@@ -228,9 +244,12 @@ ggplotly(p3, tooltip = c("text"))
 ### plot 4
 ```{r}
 renderPlotly({
-p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice4) %>%
+p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice4& 
+                              between(as.Date(Period),
+                                      input$Date_range_selector0[1], 
+                                      input$Date_range_selector0[2])) %>%
    ggplot(aes(x=Period, y=PrenatalPctPos, group= 1,    
-              text = paste('SiteName: ', SiteName, "<br>",
+              text = paste('SiteName: ', SiteName, "",
                            'proportion positive: ', round(PrenatalPctPos,3)))) +
      geom_line(aes(x=Period, y=PrenatalPctPos),color = "purple") +
      geom_point() +
@@ -251,6 +270,10 @@ Column {.sidebar}
 -----------------------------------------------------------------------
 
 ```{r, eval = T}
+h3("Screening by site")
+
+h5("There are three different options to view this comparison")
+
 hr()
 min_date <-as.Date(min(Period)) # create min and max for slider
 max_date <- as.Date(max(Period))
@@ -283,8 +306,8 @@ p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice&
                                       input$Date_range_selector[2])) %>% # filter SiteName based on user input
   # each has a different title "Date_range_selectorN" ... be sure to change
    ggplot(aes(x = Period, y = PrenatalPctPos, group = SiteName,    
-              text = paste('SiteName: ', SiteName, "<br>", # create tooltip
-                           'proportion positive: ', round(PrenatalPctPos,3), "<br>",
+              text = paste('SiteName: ', SiteName, "", # create tooltip
+                           'proportion positive: ', round(PrenatalPctPos,3), "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) +
      geom_point(aes(x=Period, y=PrenatalPctPos,color = SiteName)) + # make points
      geom_line(aes(x=Period, y=PrenatalPctPos,color = SiteName)) + # each SiteName has own line
@@ -307,6 +330,11 @@ Column 1 {.sidebar}
 --------
 
 ```{r}
+
+h3("Screening by site")
+
+h5("There are three different options to view this comparison")
+
 hr()
 
 min_date <-as.Date(min(Period)) # create min and max for slider
@@ -340,8 +368,8 @@ p4<-maternal_avg %>% filter(SiteName %in% input$SiteName_choice5 &
                                       input$Date_range_selector2[2])) %>% # filter based on user input
   # each has a different title "Date_range_selectorN" ... be sure to change
    ggplot(aes(x=Period, y=PrenatalPctPos, group= SiteName,    
-              text = paste('SiteName: ', SiteName, "<br>", # tooltip
-                           'proportion positive: ', round(PrenatalPctPos,3), "<br>",
+              text = paste('SiteName: ', SiteName, "", # tooltip
+                           'proportion positive: ', round(PrenatalPctPos,3), "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) +
      geom_line(aes(x=Period, y=PrenatalPctPos,color = SiteName)) +
      facet_grid(SiteName~., shrink = F) + # each SiteName in own grid
@@ -388,7 +416,7 @@ p<-agg_maternal %>% filter(between(as.Date(Period),
                             PrePostNums , 
                             group = 1, # 1 data point per month
                             text = paste("number screened: ", # tooltip
-                                   PrePostNums, "<br>",
+                                   PrePostNums, "",
                                   'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
   geom_line(stat = "summary") + # plot lines
   geom_point(alpha = .5) +
@@ -415,8 +443,8 @@ p<-select(agg_maternal, c("PrenatalPctScreened", "PostPctScreened", "Period")) %
               color = timepoint, # plot each timepoint a different color and line
               group = timepoint, 
               text = paste(round(measure,3)*100,"% screened", # tooltip text
-                           "<br>",timepoint,
-                           "<br>",
+                           "",timepoint,
+                           "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) +  
   xlab("Month") + # axis labels
   ylab("Proportion Screened") +
@@ -544,8 +572,8 @@ p<-select(agg_maternal, c("PrenatalPctPos", "PostPctPos", "Period")) %>%
               color = timepoint, # plot each timepoint a different color and line
               group = timepoint, 
               text = paste(round(measure,3)*100,"% screened", # tooltip text
-                           "<br>",timepoint,
-                           "<br>",
+                           "",timepoint,
+                           "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) +  
   geom_line(stat = "summary") + # plot lines
   geom_point(alpha = .5) + # points with transparency
@@ -622,8 +650,8 @@ p<-select(agg_maternal, c("PrenatalPctConnected", "PostPctConnected", "Period"))
               color = timepoint, # plot each timepoint a different color and line
               group = timepoint, 
               text = paste(round(measure,3)*100,"% screened", # tooltip text
-                           "<br>",timepoint,
-                           "<br>",
+                           "",timepoint,
+                           "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
   geom_line(stat = "summary") + # plot line
   geom_point(alpha = .5) + # points with transparency
@@ -703,7 +731,7 @@ p<-select(agg_maternal, c("PreM1Data_DEN", "PreM2Data_NUM", "Period")) %>%
   ggplot(., aes(y = measure, x = Period, 
               fill = status, # color by eligible or positive
               text = paste(round(measure,3),status, # tooltip text
-                           "<br>",
+                           "",
                            'month: ', paste(month(Period, label = TRUE),year(Period))))) + 
   geom_bar(stat = "summary", position = position_stack(reverse = TRUE)) + # make stacked bars
   xlab("Month")+ # axis labels
