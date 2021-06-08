@@ -761,7 +761,7 @@ I can change the orientation on new pages using `{data-orientation=columns}` etc
 
 [flex dashboard guide](https://rmarkdown.rstudio.com/flexdashboard/index.html)
 
-[layout guide](https://rmarkdown.rstudio.com/flexdashboard/layouts.html#overview)
+[layout guide](hhttps://pkgs.rstudio.com/flexdashboard/articles/layouts.html)
 
 [dashboard chapter in markdown book](https://bookdown.org/yihui/rmarkdown/dashboards.html)
 
@@ -781,7 +781,7 @@ I can change the orientation on new pages using `{data-orientation=columns}` etc
 
 [cheatsheet](https://images.plot.ly/plotly-documentation/images/r_cheat_sheet.pdf?_ga=2.221695057.832877277.1554941189-624079522.1510715632)
 
-[ggplotly](https://plot.ly/ggplot2/user-guide/)
+[ggplotly](https://plotly.com/ggplot2/getting-started/)
 
 #### shiny app
 
